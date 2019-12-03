@@ -1,0 +1,764 @@
+options {
+    STATIC = false;
+    IGNORE_CASE = false;
+    DEBUG_LOOKAHEAD = true;
+}
+
+
+PARSER_BEGIN(langX)
+
+package semantico;
+import java.io.*;
+
+
+public class langX {
+
+    boolean eof;
+    boolean debug_recovery = true;
+    int contParserError = 0;
+    public static SemanticAnalyzer semantic;
+
+    public static void _start(String args) throws Exception {
+        if(foundLexicalErrors(args)) return;
+
+        semantic = new SemanticAnalyzer();
+        semantic.execute = false;
+        File file = new File(args);
+        FileInputStream fis = null;
+        langX parser;
+        boolean debug_as = true;
+
+        try {
+           fis = new FileInputStream(file);
+           parser = new langX(fis);
+            if(!debug_as) parser.disable_tracing();
+            try{
+                parser.programa();
+            } catch (ParseException e) {
+                ErrorManager.addErroSintatico(e, "Nao Tratado");
+            }
+        } catch (java.io.FileNotFoundException e) {
+            throw new Exception("Arquivo nao encontrado: " + e.getMessage());
+        } finally {
+            try {
+                if (fis != null)
+                fis.close();
+            } catch (Exception e) {
+                throw new Exception("Erro ao fechar o arquivo: " + e.getMessage());
+            }
+        }
+    }
+
+
+        public static void _runSemantic(String args) throws Exception {
+            if(foundLexicalErrors(args)) return;
+
+            semantic = new SemanticAnalyzer();
+            semantic.execute = true;
+            File file = new File(args);
+            FileInputStream fis = null;
+            langX parser;
+            boolean debug_as = true;
+
+            try {
+               fis = new FileInputStream(file);
+               parser = new langX(fis);
+                if(!debug_as) parser.disable_tracing();
+                try{
+                    parser.programa();
+                } catch (ParseException e) {
+                    ErrorManager.addErroSintatico(e, "Nao Tratado");
+                }
+            } catch (java.io.FileNotFoundException e) {
+                throw new Exception("Arquivo nao encontrado: " + e.getMessage());
+            } finally {
+                try {
+                    if (fis != null)
+                    fis.close();
+                } catch (Exception e) {
+                    throw new Exception("Erro ao fechar o arquivo: " + e.getMessage());
+                }
+            }
+        }
+
+
+    static Boolean foundLexicalErrors(String args) throws Exception{
+
+        File file = new File(args);
+        FileInputStream fis = null;
+        langX parser;
+        Boolean result = false;
+
+        try {
+            fis = new FileInputStream(file);
+            parser = new langX(fis);
+            parser._testeLexico();
+            result = parser.token_source.foundLexError() > 0;
+        } catch (java.io.FileNotFoundException e) {
+            throw new Exception("Arquivo nao encontrado: " + e.getMessage());
+        } catch (ParseException e) {
+            throw new Exception("Erro Parser: " + e.getMessage());
+        } finally {
+            try {
+                if (fis != null)
+                    fis.close();
+            } catch (Exception e) {
+                throw new Exception("Erro ao fechar o arquivo: " + e.getMessage());
+            }
+        }
+        return result;
+    }
+
+
+    static public String im(int x) {
+        int k;
+        String s;
+        s = tokenImage[x];
+        k = s.lastIndexOf("\"");
+        try {
+            s = s.substring(1, k);
+        } catch (StringIndexOutOfBoundsException e) {
+        }
+        return s;
+    }
+
+
+    void consumeUntil(RecoverySet g, ParseException e, String met) throws ParseException {
+        Token tok;
+        if (debug_recovery) {
+            System.out.println();
+            System.out.println("*** " + met + " ***");
+            System.out.println("Synchronizing Set: " + g);
+        }
+        if (g == null) throw e;
+        tok = getToken(1);
+
+        while (!eof) {
+            if (g.contains(tok.kind)) {
+                if (debug_recovery) {
+                    System.out.println("Found synchronizing token: " + im(tok.kind));
+                }
+                break;
+            }
+            if (debug_recovery) {
+                System.out.println("Ignoring token: " + im(tok.kind));
+            }
+            getNextToken();
+            tok = getToken(1);
+            if (tok.kind == EOF && !g.contains(EOF)) {
+                eof = true;
+            }
+        }
+
+        System.out.println(e.getMessage());
+        contParserError++;
+        if (eof) throw new ParseException("EOF Found prematurely.");
+    }
+
+    
+}
+
+PARSER_END(langX)
+
+// *******************************************************************************************************************
+// M1 -Léxico ***************************************************************************
+// *******************************************************************************************************************
+TOKEN_MGR_DECLS :
+{
+    int countLexError = 0;
+	public int foundLexError() {
+        return countLexError;
+    }
+	public static int countCommentNesting = 0;
+}
+
+
+SKIP :
+{
+    " " | "\t" | "\n" | "\r" | "\f"
+}
+
+
+//Palavras Reservadas
+TOKEN [IGNORE_CASE] :
+{
+      < PROGRAM: "program" >
+    | < THIS: "this" >
+    | < EXECUTE: "execute" >
+    | < PURPOSE: "purpose" >
+    | < DECLARE: "declare" >
+    | < TYPE: "type" >
+    | < IS: "is" >
+    | < CONSTANT: "constant" >
+    | < AND: "and" >
+    | < VARIABLE: "variable" >
+    | < AS: "as">
+    | < INTEGER: "integer" >
+    | < REAL: "real" >
+    | < STRING: "string" >
+    | < LOGIC: "logic" >
+    | < ASSIGN: "assign" >
+    | < TO: "to" >
+    | < ACQUIRE: "acquire" >
+    | < WRITE: "write" >
+    | < SHOW: "show" >
+    | < CARRY: "carry" >
+    | < TRUE: "true" >
+    | < UNTRUE: "untrue" >
+    | < CHECK: "check" >
+    | < RESULT: "result">
+    | < PUT: "put">
+    | < OUT: "out">
+}
+
+
+//Simbolos Especiais
+TOKEN :
+{
+      < SOMA: "+" >
+    | < SUBTRACAO: "-" >
+    | < MULTIPLICACAO: "*" >
+    | < POTENCIA: "**" >
+    | < VIRGULA: "," >
+    | < DIV_INTEIRA: "%" >
+    | < RESTO_DIV_INTEIRA: "%%" >
+    | < IGUAL: "==" >
+    | < DIFERENTE: "!=" >
+    | < MENOR: "<<" >
+ 	| < MAIOR: ">>" >
+    | < MENOR_IGUAL: "<<=" >
+    | < MAIOR_IGUAL: ">>=" >
+	| < E: "&">
+	| < OU: "|">
+	| < NAO: "!">
+	| < LBRACKET: "[" >
+    | < RBRACKET: "]" >
+	| < EQUALS: "=" >
+    | < DOT: "." >
+    | < SLASH: "/" >
+    | < LPAREN: "(" >
+    | < RPAREN: ")" >
+}
+
+
+TOKEN :
+{
+      < #LETTER_ID: ["A"-"Z", "a"-"z"] >
+    | < #LETTER_UPPER: ["A"-"Z"] >
+    | < #LETTER_LOWER: ["a"- "z"] >
+    | < #DIGIT_ID: ["0"-"9"] >
+    | < #SYMBOL_UND: ["_"] >
+}
+
+
+//Constantes
+TOKEN :
+{
+      < CONSTANTE_INTEIRA: (["0"-"9"] (["0"-"9"])? (["0"-"9"])? (["0"-"9"])?) >
+    | < CONSTANTE_REAL: ((["0"-"9"] (["0"-"9"])? (["0"-"9"])? (["0"-"9"])?
+            (["0"-"9"])?)<DOT>(["0"-"9"] (["0"-"9"])? (["0"-"9"])?)) >
+    | < CONSTANTE_LITERAL: "\"" (~[ "\"" ])* "\""  >
+}
+
+
+//Identificadores
+TOKEN :
+{
+
+     <IDENTIFICADOR: (<LETTER_UPPER>)(<SYMBOL_UND>)?
+            (
+                (<LETTER_ID>(<SYMBOL_UND>)?) |
+                (<DIGIT_ID>(<DIGIT_ID>) ? (<LETTER_ID> | <SYMBOL_UND> | (<LETTER_ID>) <SYMBOL_UND>))
+            )*>
+}
+
+
+SPECIAL_TOKEN :
+{
+    <IDENTIFICADOR_INVALIDO:
+          (<DIGIT_ID>)+((<LETTER_ID>(<DIGIT_ID>)?(<DIGIT_ID>)?) |
+          <SYMBOL_UND>(<DIGIT_ID>)?(<DIGIT_ID>)?)+ //COMECA COM DIGITO
+        | ((<LETTER_ID>|<SYMBOL_UND>)(<DIGIT_ID>)?(<DIGIT_ID>)?)+ (<DIGIT_ID>)+ //TERMINA COM DIGITO
+        | (<LETTER_ID>|<SYMBOL_UND>)+ (<DIGIT_ID><DIGIT_ID><DIGIT_ID>)
+            ((<LETTER_ID>)+|<SYMBOL_UND>|<DIGIT_ID>)* // DIGITOS CONSECUTIVOS
+        | (<LETTER_ID>|<SYMBOL_UND>|<DIGIT_ID>)* (<SYMBOL_UND><SYMBOL_UND>)
+            (<LETTER_ID>|<SYMBOL_UND>|<DIGIT_ID>)* //SIMBOLOS CONSECUTIVOS
+        | (<SYMBOL_UND>)(<LETTER_ID>|<SYMBOL_UND>|<DIGIT_ID>)* // INICIANDO COM _
+        | (<LETTER_LOWER>)(<LETTER_ID>|<SYMBOL_UND>|<DIGIT_ID>)* // INCIANDO COM MINUSCULA
+    >
+    {
+        ErrorManager.addErroLexico(
+            jjmatchedKind,
+            input_stream.getBeginLine(),
+            input_stream.getBeginColumn(),
+            image.toString(),
+            "IDENTIFICADOR_INVALIDO",
+            langX.im(jjmatchedKind)
+        );
+        countLexError++;
+    }
+}
+
+
+SPECIAL_TOKEN :
+{
+        <CONSTANTE_LITERAL_INVALIDA: "\"" (~["\n","\r","\""])* ~["\""]
+                                            | "\'" (~["\n","\r","\'"])* ~["\'"]|"'">
+    {
+        ErrorManager.addErroLexico(
+            jjmatchedKind,
+            input_stream.getBeginLine(),
+            input_stream.getBeginColumn(),
+            image.toString(),
+            "CONSTANTE_LITERAL_INVALIDA",
+            langX.im(jjmatchedKind)
+        );
+        countLexError++;
+    }
+}
+
+
+//Comentário de bloco
+SKIP:
+{
+    <"/*"> {
+        countCommentNesting++;
+        ErrorManager.addErroLexico(jjmatchedKind, input_stream.getBeginLine(), input_stream.getBeginColumn(),
+            image.toString(), "COMENTARIO_DE_BLOCO_NAO_FINALIZADO", langX.im(jjmatchedKind));
+        countLexError++;
+    } : IN_COMMENT
+}
+<IN_COMMENT> SKIP :
+{
+    "*/" {
+        countCommentNesting--;
+        //if(countCommentNesting == 0) {
+        SwitchTo(DEFAULT);
+        ErrorManager.removeLastError();
+        countLexError--;
+        //}
+    } |
+    <~[]>
+}
+
+
+//Comentário Single Line
+SKIP :
+{
+    "//": singlelinecomment
+}
+<singlelinecomment> SKIP :
+{
+    < ["\n", "\r"] >: DEFAULT |
+    <~[]>
+}
+
+
+//Cadeias Inválidas
+SPECIAL_TOKEN :
+{
+    < SIMBOLO_INVALIDO :
+        (~ ["a"-"z", "A"-"Z", "0"-"9", "[","]", "=", ".", "/", "(", ")", "+", "-", "*",
+            "%", "=", "!", "<", ">", "&", "|", "!", " ", "\t", "\n", "\r", "\f"])+
+     > {
+        ErrorManager.addErroLexico(
+            jjmatchedKind,
+            input_stream.getBeginLine(),
+            input_stream.getBeginColumn(),
+            image.toString(),
+            "SIMBOLO_INVALIDO",
+            langX.im(jjmatchedKind)
+         );
+        countLexError++;
+    }
+}
+
+
+//Teste do analizador léxico
+void _testeLexico() : {}
+{
+  	(
+		// palavras reservadas
+	    <PROGRAM>|<THIS>|<EXECUTE>|<PURPOSE>|<DECLARE>|<TYPE>|<IS>|<CONSTANT>|<AND>|<VARIABLE>|<AS>|
+	    <INTEGER>|<REAL>|<STRING>|<LOGIC>|<ASSIGN>|<TO>|<ACQUIRE>|<WRITE>|<SHOW>|<CARRY>|<TRUE>|<UNTRUE>|
+	    <PUT>|<OUT>
+
+		// simbolos especiais
+        <SOMA>|<SUBTRACAO>|<MULTIPLICACAO>|<POTENCIA>|<DIV_INTEIRA>|<RESTO_DIV_INTEIRA>|<IGUAL>|<DIFERENTE>|
+        <MENOR>|<MAIOR>|<MENOR_IGUAL>|<MAIOR_IGUAL>|<E>|<OU>|<NAO>|<LBRACKET>|<RBRACKET>|<EQUALS>|<DOT>|<SLASH>|
+        <LPAREN>|<RPAREN>|<VIRGULA>|
+
+		// constantes
+		<CONSTANTE_INTEIRA>|<CONSTANTE_REAL>|<CONSTANTE_LITERAL>|
+
+		// identificadores
+		<IDENTIFICADOR> |
+
+		// novos simbolos
+		<CHECK> | <RESULT>
+	)*
+	<EOF>
+}
+
+
+// ********************************************************************************************************************
+// M2 - Sintático *****************************************************************************************************
+// M3 - Semântico *****************************************************************************************************
+// ********************************************************************************************************************
+void programa() throws ParseEOFException : {
+    RecoverySet h = First.header;
+    RecoverySet d = First.declaration;
+    RecoverySet b = First.body;
+    RecoverySet c = First.comentario;
+} {
+    try_call_header(h)
+    header(d.union(b))
+    declaracao(b, c)
+}
+
+// ------------------------------------------------------------------ comentario
+void comentario() : {
+    RecoverySet eof = new RecoverySet(EOF);
+} {
+    try {
+        (<PURPOSE>  <CONSTANTE_LITERAL>)?
+    }  catch (ParseException ex) {
+        ErrorManager.addErroSintatico(ex, "purpose comentário");
+        consumeUntil(eof, ex, "comentario");
+    } finally {
+        try_call_eof(eof);
+    }
+}
+
+void try_call_eof(RecoverySet eof) : {
+} {
+    try{
+        <EOF> {semantic.action2();}
+    }  catch (ParseException ex) {
+        ErrorManager.addErroSintatico(ex, "try_call_eof");
+        consumeUntil(eof, ex, "try_call_eof");
+        try_call_eof(eof);
+    }
+}
+
+
+// ------------------------------------------------------------------ header
+void try_call_header(RecoverySet h) : {
+} {
+    try{
+        <PROGRAM>
+    }  catch (ParseException ex) {
+        ErrorManager.addErroSintatico(ex, "try_call_header");
+        consumeUntil(h, ex, "try_call_header");
+        try_call_header(h);
+    }
+}
+
+void header(RecoverySet db) : {} {
+    try {
+         <IDENTIFICADOR>
+         {semantic.action1(token.image);}
+         <LBRACKET>
+         <RBRACKET>
+    } catch (ParseException ex) {
+        ErrorManager.addErroSintatico(ex, "header");
+        consumeUntil(db, ex, "header");
+    }
+}
+
+
+//--------------------------------------------------------------- declarações
+void declaracao(RecoverySet b, RecoverySet c) : {} {
+    try {
+        (<DECLARE> <THIS> <LBRACKET> constantesEVariaveis() <RBRACKET>)?
+    }  catch (ParseException ex) {
+       ErrorManager.addErroSintatico(ex, "declare");
+       consumeUntil(b, ex, "declaracao");
+       //body(c);
+       //return;
+    } finally {
+        try_call_body(b);
+        body(c);
+    }
+}
+
+
+void constantesEVariaveis() : {} {
+    <AS> constantesEVariaveis_()
+}
+
+void constantesEVariaveis_() : {} {
+    declaracaoDeConstantes() variaveis__() |
+    declaracaoDeVariaveis() constantes__()
+}
+
+////---------------------------------------------------------- constantes
+void declaracaoDeConstantes() : {} {
+    <CONSTANT>
+    {semantic.action5();}
+    constantes()
+}
+
+void constantes() : {} {
+    listaDeIdentificadoresDeConstantes()
+    <EQUALS>
+    tipo()
+    {semantic.action6();}
+    <EQUALS>
+    valor()
+    {semantic.action7(token);}
+    <DOT>
+    constantes_()
+}
+
+void constantes_() : {} {
+    (constantes())?
+}
+
+void constantes__() : {} {
+    (<AS> declaracaoDeConstantes())?
+}
+
+
+////---------------------------------------------------------- variáveis
+void declaracaoDeVariaveis() : {} {
+    <VARIABLE>
+    {semantic.action8();}
+    variaveis()
+}
+
+void variaveis() : {} {
+    listaDeIdentificadoresDeVariaveis()
+    <EQUALS>
+    tipo()
+    {semantic.action6();}
+    <DOT>
+    variaveis_()
+}
+
+void variaveis_() : {} {
+    (variaveis())?
+}
+
+void variaveis__() : {} {
+    (<AS> declaracaoDeVariaveis())?
+}
+
+
+////---------------------------------------------------------- listas
+void listaDeIdentificadoresDeConstantes() : {} {
+    <IDENTIFICADOR>
+    {semantic.action9(token.image);}
+    listaDeIdentificadoresDeConstantes_()
+}
+
+void listaDeIdentificadoresDeConstantes_() : {} {
+    (<VIRGULA> listaDeIdentificadoresDeConstantes())?
+}
+
+void listaDeIdentificadoresDeVariaveis() : {} {
+    <IDENTIFICADOR>
+    {semantic.action10(token.image);}
+    indice()
+    {semantic.action11();}
+    listaDeIdentificadoresDeVariaveis_()
+}
+
+void listaDeIdentificadoresDeVariaveis_() : {} {
+    (<VIRGULA> listaDeIdentificadoresDeVariaveis())?
+}
+
+
+////---------------------------------------------------------- indice, tipo, valor
+void indice() : {} {
+    (<LPAREN> <CONSTANTE_INTEIRA> {semantic.action12(token.image);} <RPAREN>)?
+}
+
+void tipo() : {} {
+    <INTEGER>       {semantic.action13();} |
+    <REAL>          {semantic.action14();} |
+    <STRING>        {semantic.action15();} |
+    <LOGIC>         {semantic.action16();} |
+    <IDENTIFICADOR> {semantic.action17();}
+}
+
+void valor() : {} {
+    <CONSTANTE_INTEIRA> | <CONSTANTE_REAL> | <CONSTANTE_LITERAL>
+}
+
+
+// ------------------------------------------------------------------ corpo do programa
+void try_call_body(RecoverySet b) : {
+} {
+    try{
+        <EXECUTE> <THIS>
+    }  catch (ParseException ex) {
+        ErrorManager.addErroSintatico(ex, "try_call_body");
+        consumeUntil(b, ex, "try_call_body");
+        try_call_body(b);
+    }
+}
+
+void body(RecoverySet c) : {} {
+    try {
+         <LBRACKET>
+         listaDeComandos()
+         <RBRACKET>
+    } catch (ParseException ex) {
+        ErrorManager.addErroSintatico(ex, "body");
+        consumeUntil(c, ex, "body");
+    } finally {
+        comentario();
+    }
+}
+
+
+// ------------------------------------------------------------------ Comandos
+void listaDeComandos() : {} {
+    comando() listaDeComandos_()
+}
+
+void comando() : {} {
+    atribuicao() | entrada() | saida() | selecao() | repeticao()
+}
+
+void listaDeComandos_() : {} {
+    (listaDeComandos())?
+}
+
+void atribuicao() : {} {
+    <ASSIGN>
+    <THIS>
+    {semantic.action18();}
+    listaDeIdentificadoresDeVariaveis()
+    <MAIOR>
+    expressao()
+    {semantic.action19();}
+    <DOT>
+}
+
+void entrada() : {} {
+    <ACQUIRE>
+    <THIS>
+    {semantic.action20();}
+    <LBRACKET>
+    listaDeIdentificadoresDeVariaveis()
+    <RBRACKET>
+    <DOT>
+}
+
+void saida() : {} {
+    <SHOW> <THIS>  {semantic.action21();} <LBRACKET> listaDeIdentificadoresEOuConstantes() <RBRACKET> <DOT> |
+    <PUT> <THIS> {semantic.action22();} <LBRACKET> listaDeIdentificadoresEOuConstantes() <RBRACKET> <DOT>
+}
+
+void listaDeIdentificadoresEOuConstantes() : {} {
+    item() {semantic.action23();} listaDeIdentificadoresEOuConstantes_()
+}
+
+void listaDeIdentificadoresEOuConstantes_() : {} {
+    (<VIRGULA> listaDeIdentificadoresEOuConstantes())?
+}
+
+
+void item () : {} {
+      <IDENTIFICADOR>     {semantic.action24(token.image);} indice()  {semantic.action25();}
+    | <CONSTANTE_INTEIRA> {semantic.action26(token.image);}
+    | <CONSTANTE_REAL>    {semantic.action27(token.image);}
+    | <CONSTANTE_LITERAL> {semantic.action28(token.image);}
+}
+
+void selecao() : {} {
+    <CHECK> <THIS> expressao() selecao_()  {semantic.action29();}
+}
+
+void selecao_() : {} {
+    <TRUE> <RESULT> {semantic.action30();} <LBRACKET> listaDeComandos() <RBRACKET> falsa() <DOT> |
+    <UNTRUE> <RESULT> {semantic.action31();} <LBRACKET> listaDeComandos() <RBRACKET> verdadeira() <DOT>
+}
+
+void verdadeira() : {} {
+    (<TRUE> <RESULT>  {semantic.action32();} <LBRACKET> listaDeComandos() <RBRACKET>)?
+}
+
+void falsa() : {} {
+    (<UNTRUE> <RESULT>  {semantic.action32();} <LBRACKET> listaDeComandos() <RBRACKET>)?
+}
+
+void repeticao() : {} {
+    <CARRY> <OUT>
+    <THIS>
+    {semantic.action33();}
+    expressao()
+    {semantic.action34();}
+    <LBRACKET> listaDeComandos() <RBRACKET>
+    {semantic.action35();}
+    <DOT>
+}
+
+// ------------------------------------------------------------------ expressao
+
+void expressao() : {} {
+    expressaoAritmeticaOuLogica() expressao_()
+}
+
+void expressao_() : {} {
+    (
+          <IGUAL>       expressaoAritmeticaOuLogica() {semantic.action36();}
+        | <DIFERENTE>   expressaoAritmeticaOuLogica() {semantic.action37();}
+        | <MENOR>       expressaoAritmeticaOuLogica() {semantic.action38();}
+        | <MAIOR>       expressaoAritmeticaOuLogica() {semantic.action39();}
+        | <MENOR_IGUAL> expressaoAritmeticaOuLogica() {semantic.action40();}
+        | <MAIOR_IGUAL> expressaoAritmeticaOuLogica() {semantic.action41();}
+    ) ?
+}
+
+void expressaoAritmeticaOuLogica() : {} {
+    termo2() menorPrioridade()
+}
+
+void menorPrioridade() : {} {
+    (
+          <SOMA>      termo2() menorPrioridade() {semantic.action42();}
+        | <SUBTRACAO> termo2() menorPrioridade() {semantic.action43();}
+        | <OU>        termo2() menorPrioridade() {semantic.action44();}
+    ) ?
+}
+
+void termo2() : {} {
+    termo1() mediaPrioridade()
+}
+
+void mediaPrioridade() : {}{
+    (
+          <MULTIPLICACAO>     termo1() mediaPrioridade() {semantic.action45();}
+        | <SLASH>             termo1() mediaPrioridade() {semantic.action46();}
+        | <DIV_INTEIRA>       termo1() mediaPrioridade() {semantic.action47();}
+        | <RESTO_DIV_INTEIRA> termo1() mediaPrioridade() {semantic.action48();}
+        | <E>                 termo1() mediaPrioridade() {semantic.action49();}
+    ) ?
+}
+
+void termo1() : {} {
+    elemento() maiorPrioridade()
+}
+
+void maiorPrioridade() : {}{
+    (
+        <POTENCIA>
+        elemento()
+        maiorPrioridade()
+        {semantic.action50();}
+    )?
+}
+
+void elemento() : {} {
+      <IDENTIFICADOR>     {semantic.action24(token.image);} indice() {semantic.action51();}
+    | <CONSTANTE_INTEIRA> {semantic.action26(token.image);}
+    | <CONSTANTE_REAL>    {semantic.action27(token.image);}
+    | <CONSTANTE_LITERAL> {semantic.action28(token.image);}
+    | <TRUE>              {semantic.action52();}
+    | <UNTRUE>            {semantic.action53();}
+    | <LPAREN> expressao() <RPAREN>
+    | <NAO> <LPAREN> expressao() <RPAREN> {semantic.action54();}
+}

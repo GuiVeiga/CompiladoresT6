@@ -1,0 +1,20 @@
+program Programa []
+
+declare this [
+	as constant 
+		Laranja = integer = 4.
+		//Laranja = integer = 3.
+	as variable
+		Uva = integer .
+
+
+execute this
+	check this (1 << 2)
+	true result [ 
+		 put this["true"].
+	] untrue result [
+		 show this["false"].
+	].
+]
+
+/*description "fim"*/
